@@ -171,7 +171,25 @@ void engine_finish_before_fork_handler(void)
 int qat_create_thread(pthread_t *pThreadId, const pthread_attr_t *attr,
                       void *(*start_func) (void *), void *pArg)
 {
-    return pthread_create(pThreadId, attr, start_func,(void *)pArg);
+    // pthread allows a max of 16 bytes for the thread name, including the null byte
+#define PTHREAD_NAMELEN 16
+    char threadName[PTHREAD_NAMELEN] = "";
+    int errornum = pthread_create(pThreadId, attr, start_func,(void *)pArg);
+    static int threadCount = 0;
+
+    if (errornum) {
+        WARN("qat_create_thread(): failed to create pthread.");
+        return errornum;
+    }
+
+    snprintf(threadName, PTHREAD_NAMELEN, "qat_thread_%d", threadCount++);
+    errornum = pthread_setname_np(*pThreadId, threadName);
+
+    if (errornum) {
+        WARN("qat_create_thread(): failed to name pthread.");
+    }
+
+    return errornum;
 }
 
 int qat_join_thread(pthread_t threadId, void **retval)
